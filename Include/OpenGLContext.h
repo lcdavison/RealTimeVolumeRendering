@@ -6,20 +6,20 @@
 
 namespace RTVR::OpenGL
 {
-	class Context
-	{
-		class Implementation;
-		std::unique_ptr<Implementation> Impl_;
+    class Context
+    {
+        class Implementation;
+        std::unique_ptr<Implementation> Impl_;
 
-	public:
-		Context(HWND WindowHandle);
+    public:
+        Context(HWND WindowHandle);
 
-		Context(const Context& OtherContext) = delete;
-		Context& operator = (const Context& OtherContext) = delete;
+        Context(const Context& OtherContext) = delete;
+        Context& operator = (const Context& OtherContext) = delete;
 
-		~Context();
+        ~Context();
 
-		VOID ClearBackBuffer();
-		VOID SwapBuffers();
-	};
+        VOID ClearBackBuffer();
+        VOID SwapBuffers();
+    };
 }
