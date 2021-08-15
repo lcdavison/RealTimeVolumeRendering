@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <string>
 
 namespace RTVR::OpenGL
 {
@@ -35,18 +36,18 @@ namespace RTVR::OpenGL
         typedef ReturnType (*OpenGLFunction) (ArgumentType...);
         OpenGLFunction OpenGLFunction_;
 
-        LPCSTR FunctionName_;
+        std::string FunctionName_;
 
         VOID Load() override
         {
             if (!OpenGLFunction_)
             {
-                OpenGLFunction_ = reinterpret_cast<OpenGLFunction>(::wglGetProcAddress(FunctionName_));
+                OpenGLFunction_ = reinterpret_cast<OpenGLFunction>(::wglGetProcAddress(FunctionName_.c_str()));
             }
         }
 
     public:
-        OpenGLFunctionWrapper(LPCSTR FunctionName)
+        OpenGLFunctionWrapper(std::string&& FunctionName)
             : OpenGLFunction_ { nullptr }
             , FunctionName_ { FunctionName }
         {
