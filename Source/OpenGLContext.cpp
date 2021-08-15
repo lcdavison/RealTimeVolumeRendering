@@ -55,8 +55,6 @@ namespace RTVR::OpenGL
 	private:
 		VOID SetupPixelFormat();
 
-		VOID LoadOpenGLFunctions();
-
 	};
 
 	VOID Context::Implementation::CreateContext(HWND WindowHandle)
@@ -68,7 +66,7 @@ namespace RTVR::OpenGL
 		OpenGLContext_ = ::wglCreateContext(DeviceContext_);
 		::wglMakeCurrent(DeviceContext_, OpenGLContext_);
 
-		LoadOpenGLFunctions();
+		OpenGLFunctionLoader::LoadFunctions();
 	}
 
 	VOID Context::Implementation::SetupPixelFormat()
@@ -97,33 +95,6 @@ namespace RTVR::OpenGL
 		{
 			throw std::runtime_error("Failed to set pixel format");
 		}
-	}
-
-	VOID Context::Implementation::LoadOpenGLFunctions()
-	{
-		glGetStringi.Load();
-
-		glCreateVertexArrays.Load();
-		glDeleteVertexArrays.Load();
-		glBindVertexArray.Load();
-
-		glCreateBuffers.Load();
-		glDeleteBuffers.Load();
-
-		glCreateTextures.Load();
-		glTextureParameteri.Load();
-		glTextureParameterf.Load();
-		glBindTextures.Load();
-
-		glCreateShader.Load();
-		glDeleteShader.Load();
-		glAttachShader.Load();
-		glDetachShader.Load();
-		glCompileShader.Load();
-
-		glCreateProgram.Load();
-		glDeleteProgram.Load();
-		glValidateProgram.Load();
 	}
 
 	VOID Context::Implementation::DeleteContext()
