@@ -2,10 +2,43 @@
 
 #include <stdexcept>
 
+#include "OpenGLFunction.h"
 #include <gl/GL.h>
+#include <OpenGL/glext.h>
+
+#define CREATE_OPENGL_FUNCTION_WRAPPER(FunctionName, FunctionPointer) RTVR::OpenGL::OpenGLFunctionWrapper<FunctionPointer> FunctionName { #FunctionName };
 
 namespace RTVR::OpenGL
 {
+	#pragma region Context_OpenGL_Functions
+	
+	CREATE_OPENGL_FUNCTION_WRAPPER(glGetStringi, PFNGLGETSTRINGIPROC)
+
+	CREATE_OPENGL_FUNCTION_WRAPPER(glCreateVertexArrays, PFNGLCREATEVERTEXARRAYSPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glDeleteVertexArrays, PFNGLDELETEVERTEXARRAYSPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glBindVertexArray, PFNGLBINDVERTEXARRAYPROC)
+
+	CREATE_OPENGL_FUNCTION_WRAPPER(glCreateBuffers, PFNGLCREATEBUFFERSPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glDeleteBuffers, PFNGLDELETEBUFFERSPROC)
+
+	CREATE_OPENGL_FUNCTION_WRAPPER(glCreateTextures, PFNGLCREATETEXTURESPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glTextureParameteri, PFNGLTEXTUREPARAMETERIPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glTextureParameterf, PFNGLTEXTUREPARAMETERFPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glBindTextures, PFNGLBINDTEXTURESPROC)
+
+	CREATE_OPENGL_FUNCTION_WRAPPER(glCreateShader, PFNGLCREATESHADERPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glDeleteShader, PFNGLDELETESHADERPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glAttachShader, PFNGLATTACHSHADERPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glDetachShader, PFNGLDETACHSHADERPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glCompileShader, PFNGLCOMPILESHADERPROC)
+
+	CREATE_OPENGL_FUNCTION_WRAPPER(glCreateProgram, PFNGLCREATEPROGRAMPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glDeleteProgram, PFNGLDELETEPROGRAMPROC)
+	CREATE_OPENGL_FUNCTION_WRAPPER(glValidateProgram, PFNGLVALIDATEPROGRAMPROC)
+
+	#pragma endregion Context_OpenGL_Functions
+
+	#pragma region Context_Private_Implementation
 	class Context::Implementation
 	{
 		HDC DeviceContext_;
@@ -15,9 +48,14 @@ namespace RTVR::OpenGL
 		VOID CreateContext(HWND WindowHandle);
 		VOID DeleteContext();
 
+		VOID SwapBuffers();
+
+		VOID CheckForValidContext();
+
+	private:
 		VOID SetupPixelFormat();
 
-		VOID SwapBuffers();
+		VOID LoadOpenGLFunctions();
 
 	};
 
@@ -29,6 +67,8 @@ namespace RTVR::OpenGL
 
 		OpenGLContext_ = ::wglCreateContext(DeviceContext_);
 		::wglMakeCurrent(DeviceContext_, OpenGLContext_);
+
+		LoadOpenGLFunctions();
 	}
 
 	VOID Context::Implementation::SetupPixelFormat()
@@ -59,6 +99,33 @@ namespace RTVR::OpenGL
 		}
 	}
 
+	VOID Context::Implementation::LoadOpenGLFunctions()
+	{
+		glGetStringi.Load();
+
+		glCreateVertexArrays.Load();
+		glDeleteVertexArrays.Load();
+		glBindVertexArray.Load();
+
+		glCreateBuffers.Load();
+		glDeleteBuffers.Load();
+
+		glCreateTextures.Load();
+		glTextureParameteri.Load();
+		glTextureParameterf.Load();
+		glBindTextures.Load();
+
+		glCreateShader.Load();
+		glDeleteShader.Load();
+		glAttachShader.Load();
+		glDetachShader.Load();
+		glCompileShader.Load();
+
+		glCreateProgram.Load();
+		glDeleteProgram.Load();
+		glValidateProgram.Load();
+	}
+
 	VOID Context::Implementation::DeleteContext()
 	{
 		::wglDeleteContext(OpenGLContext_);
@@ -68,10 +135,16 @@ namespace RTVR::OpenGL
 	{
 		::SwapBuffers(DeviceContext_);
 	}
-}
 
-namespace RTVR::OpenGL
-{
+	VOID Context::Implementation::CheckForValidContext()
+	{
+		if (!OpenGLContext_)
+		{
+			throw std::runtime_error("A valid context has not been created");
+		}
+	}
+	#pragma endregion Context_Private_Implementation
+
 	Context::Context(HWND WindowHandle)
 		: Impl_ { new Context::Implementation{} }
 	{
@@ -85,6 +158,8 @@ namespace RTVR::OpenGL
 
 	VOID Context::ClearBackBuffer()
 	{
+		Impl_->CheckForValidContext();
+
 		glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -92,6 +167,8 @@ namespace RTVR::OpenGL
 
 	VOID Context::SwapBuffers()
 	{
+		Impl_->CheckForValidContext();
+
 		Impl_->SwapBuffers();
 	}
 }
