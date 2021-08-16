@@ -17,12 +17,19 @@ namespace RTVR::ErrorHandling
         {
             FunctionToExecute(FunctionArguments...);
         }
-        catch (std::runtime_error RuntimeError)
+        catch (std::runtime_error& RuntimeError)
         {
             WCHAR ErrorMessage [ErrorMessageMaxLength];
             ::mbstowcs_s(nullptr, ErrorMessage, RuntimeError.what(), ErrorMessageMaxLength);
 
-            ::MessageBox(nullptr, ErrorMessage, L"Exception Thrown", MB_OK);
+            ::MessageBox(nullptr, ErrorMessage, L"Runtime Error", MB_OK);
+        }
+        catch (std::bad_alloc& BadAllocError)
+        {
+            WCHAR ErrorMessage [ErrorMessageMaxLength];
+            ::mbstowcs_s(nullptr, ErrorMessage, BadAllocError.what(), ErrorMessageMaxLength);
+
+            ::MessageBox(nullptr, ErrorMessage, L"Bad Memory Allocation", MB_OK);
         }
         catch (...)
         {
