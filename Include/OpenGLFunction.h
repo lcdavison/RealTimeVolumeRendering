@@ -33,12 +33,12 @@ namespace RTVR::OpenGL
     template<class ReturnType, class ... ArgumentType>
     class OpenGLFunctionWrapper<ReturnType(*)(ArgumentType ...)> : private BaseFunctionWrapper
     {
-        typedef ReturnType (*OpenGLFunction) (ArgumentType...);
+        using OpenGLFunction = ReturnType (*) (ArgumentType...);
         OpenGLFunction OpenGLFunction_;
 
         std::string FunctionName_;
 
-        VOID Load() override
+        VOID Load() override final
         {
             if (!OpenGLFunction_)
             {
