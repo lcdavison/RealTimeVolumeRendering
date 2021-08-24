@@ -55,13 +55,13 @@ namespace RTVR::IO
     }
     #pragma endregion Utilities
 
-    DatasetLoader::DatasetLoader(const std::string& DatasetFilePath)
+    DatasetLoader::DatasetLoader(const std::filesystem::path& DatasetFilePath)
     {
         FileStream_.open(DatasetFilePath, std::fstream::in | std::fstream::binary);
 
         if (!FileStream_.is_open())
         {
-            throw std::runtime_error("Failed to open dataset file: " + DatasetFilePath);
+            throw std::runtime_error("Failed to open dataset file: " + DatasetFilePath.string());
         }
     }
 
@@ -70,7 +70,7 @@ namespace RTVR::IO
         FileStream_.close();
     }
 
-    VOID DatasetLoader::Read(std::byte** DestinationMemoryAddress)
+    VOID DatasetLoader::Read(Dataset& OutDataset)
     {
         DatasetFileHeader FileHeader = {};
         ReadFileHeader(FileHeader);
@@ -79,10 +79,17 @@ namespace RTVR::IO
 
         SIZE_T VolumeDataSizeInBytes = { VolumeDataCount * sizeof(unsigned char) };
 
-        std::byte*& DestinationBuffer = *(DestinationMemoryAddress);
-        DestinationBuffer = new std::byte [VolumeDataSizeInBytes];
+        OutDataset.VolumeData = new std::byte [VolumeDataSizeInBytes];
 
-        FileStream_.read(reinterpret_cast<char*>(DestinationBuffer), VolumeDataSizeInBytes);
+        OutDataset.GridResolutionX = FileHeader.GridResolutionX;
+        OutDataset.GridResolutionY = FileHeader.GridResolutionY;
+        OutDataset.GridResolutionZ = FileHeader.GridResolutionZ;
+
+        OutDataset.VolumeExtentX = FileHeader.VolumeExtentX;
+        OutDataset.VolumeExtentY = FileHeader.VolumeExtentY;
+        OutDataset.VolumeExtentZ = FileHeader.VolumeExtentZ;
+
+        FileStream_.read(reinterpret_cast<char*>(OutDataset.VolumeData), VolumeDataSizeInBytes);
     }
 
     VOID DatasetLoader::ReadFileHeader(DatasetFileHeader& FileHeader)

@@ -1,26 +1,71 @@
 #include <Windows.h>
 #include <stdexcept>
 #include <memory>
+#include <algorithm>
+#include <DirectXMath.h>
 
 #include "ErrorHandling.h"
 #include "OpenGLContext.h"
+#include "Texture2DSliceRenderer.h"
+
+/* Get rid of Windows macros */
+#undef min
+#undef max
 
 static HWND WindowHandle = {};
 static std::unique_ptr<RTVR::OpenGL::Context> OpenGLContext = {};
+static std::unique_ptr<RTVR::Texture2DSliceRenderer> TextureSliceRenderer = {};
+
 static BOOL IsProgramRunning = { FALSE };
 
 constexpr UINT WindowWidth = { 1920 };
 constexpr UINT WindowHeight = { 1080 };
 
+extern FLOAT CameraAzimuth = { 0.0f };
+extern FLOAT CameraAltitude = { 0.5f };
+extern FLOAT CameraDistance = { 5.0f };
+
+INT LastMousePositionX = {};
+INT LastMousePositionY = {};
+
 LRESULT CALLBACK WindowEventHandler(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 {
     switch (Message)
     {
-        case WM_DESTROY:
+    case WM_MOUSEMOVE:
+        {
+            INT MouseXPosition = LOWORD(LParam);
+            INT MouseYPosition = HIWORD(LParam);
+
+            INT ChangeInMouseX = { MouseXPosition - LastMousePositionX };
+
+            CameraAzimuth += DirectX::XMConvertToRadians(ChangeInMouseX) * 0.5f;
+
+            if (CameraAzimuth >= DirectX::XM_2PI)
             {
-                ::IsProgramRunning = FALSE;
+                CameraAzimuth = 0.0f;
             }
-            break;
+            else if (CameraAzimuth <= 0.0f)
+            {
+                CameraAzimuth = DirectX::XM_2PI;
+            }
+
+            INT ChangeInMouseY = { -MouseYPosition + LastMousePositionY };
+
+            CameraAltitude += DirectX::XMConvertToRadians(ChangeInMouseY) * 0.5f;
+            CameraAltitude = std::max(0.5f, std::min(2.0f * DirectX::XM_PI / 3.0f, CameraAltitude));
+
+            LastMousePositionX = MouseXPosition;
+            LastMousePositionY = MouseYPosition;
+
+            ::SetWindowText(WindowHandle, (L"X: " + std::to_wstring(ChangeInMouseX) + L" Y: " + std::to_wstring(ChangeInMouseY)).c_str());
+        }
+        break;
+    case WM_DESTROY:
+        {
+            ::IsProgramRunning = FALSE;
+        }
+        break;
     }
 
     return DefWindowProc(Window, Message, WParam, LParam);
@@ -67,13 +112,13 @@ VOID CreateApplicationWindow(HINSTANCE Instance)
 
     POINT CenteredWindowPosition = { ::CalculateCenteredWindowPosition() };
 
-    WindowHandle = ::CreateWindowEx(0, 
-                                    L"RealTimeVolumeRenderingWindow", L"Real Time Volume Rendering", 
-                                    WS_OVERLAPPEDWINDOW, 
+    WindowHandle = ::CreateWindowEx(0,
+                                    L"RealTimeVolumeRenderingWindow", L"Real Time Volume Rendering",
+                                    WS_OVERLAPPEDWINDOW,
                                     CenteredWindowPosition.x, CenteredWindowPosition.y,
-                                    WindowWidth, WindowHeight, 
-                                    nullptr, nullptr, 
-                                    Instance, 
+                                    WindowWidth, WindowHeight,
+                                    nullptr, nullptr,
+                                    Instance,
                                     nullptr);
 
     if (!WindowHandle)
@@ -102,6 +147,8 @@ VOID Render()
 {
     OpenGLContext->ClearBackBuffer();
 
+    TextureSliceRenderer->Render(OpenGLContext.get());
+
     OpenGLContext->SwapBuffers();
 }
 
@@ -111,6 +158,8 @@ VOID RunProgram(HINSTANCE Instance)
 
     OpenGLContext = std::make_unique<RTVR::OpenGL::Context>(WindowHandle);
 
+    TextureSliceRenderer = std::make_unique<RTVR::Texture2DSliceRenderer>(OpenGLContext.get());
+
     ::IsProgramRunning = TRUE;
 
     while (::IsProgramRunning)
@@ -119,6 +168,8 @@ VOID RunProgram(HINSTANCE Instance)
 
         ::Render();
     }
+
+    TextureSliceRenderer->DeleteResources(OpenGLContext.get());
 }
 
 INT WINAPI WinMain(HINSTANCE Instance, HINSTANCE, LPSTR CommandLine, INT ShowCommand)
