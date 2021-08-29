@@ -20,9 +20,6 @@ namespace RTVR
     /* This renderer implements the 2D Slice rendering algorithm from Real-Time Volume Graphics by Klaus Engel et al. */
     class Texture2DSliceRenderer final : public IVolumeRenderer
     {
-        DirectX::XMFLOAT4X4 ProjectionMatrix_;
-        DirectX::XMFLOAT4X4 ViewMatrix_;
-
         std::unique_ptr<RTVR::Modelling::Texture2DSliceVolume> Volume_;
         std::unique_ptr<RTVR::OpenGL::Shader> SliceVolumeShader_;
 
@@ -30,14 +27,14 @@ namespace RTVR
         Texture2DSliceRenderer(OpenGL::Context* OpenGLContext);
         ~Texture2DSliceRenderer();
         
-        VOID Render(OpenGL::Context* OpenGLContext) override final;
+        VOID Render(OpenGL::Context* OpenGLContext, Camera* Camera) override final;
 
         VOID DeleteResources(OpenGL::Context* OpenGLContext) override final;
 
     private:
-        void UpdateCamera();
+        VOID SetupShaderUniforms(OpenGL::Context* OpenGLContext, Camera* Camera);
 
-        DirectX::XMFLOAT4 CalculateViewDirectionInVolumeSpace();
+        DirectX::XMFLOAT4 CalculateViewDirectionInVolumeSpace(Camera* Camera);
 
         Axis CalculateMaximumAxis(DirectX::XMFLOAT4 Vector);
     };

@@ -7,26 +7,28 @@
 #include "ErrorHandling.h"
 #include "OpenGLContext.h"
 #include "Texture2DSliceRenderer.h"
+#include "Camera.h"
 
 /* Get rid of Windows macros */
 #undef min
 #undef max
 
-static HWND WindowHandle = {};
-static std::unique_ptr<RTVR::OpenGL::Context> OpenGLContext = {};
-static std::unique_ptr<RTVR::Texture2DSliceRenderer> TextureSliceRenderer = {};
-
-static BOOL IsProgramRunning = { FALSE };
-
 constexpr UINT WindowWidth = { 1920 };
 constexpr UINT WindowHeight = { 1080 };
 
-extern FLOAT CameraAzimuth = { 0.0f };
-extern FLOAT CameraAltitude = { 0.5f };
-extern FLOAT CameraDistance = { 5.0f };
+static HWND WindowHandle = {};
+static std::unique_ptr<RTVR::OpenGL::Context> OpenGLContext = {};
+static std::unique_ptr<RTVR::Texture2DSliceRenderer> TextureSliceRenderer = {};
+static std::unique_ptr<RTVR::Camera> Camera = {};
 
-INT LastMousePositionX = {};
-INT LastMousePositionY = {};
+static BOOL IsProgramRunning = { FALSE };
+
+static FLOAT CameraAzimuth = { 0.0f };
+static FLOAT CameraAltitude = { 0.5f };
+static FLOAT CameraDistance = { 5.0f };
+
+static INT LastMousePositionX = {};
+static INT LastMousePositionY = {};
 
 LRESULT CALLBACK WindowEventHandler(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -143,22 +145,43 @@ VOID HandleEvents()
     }
 }
 
+VOID Update()
+{
+    DirectX::XMVECTOR XMCameraOffset = { DirectX::XMVectorSet(CameraDistance * std::cos(CameraAzimuth) * std::sin(CameraAltitude),
+                                                              CameraDistance * std::cos(CameraAltitude),
+                                                              CameraDistance * std::sin(CameraAzimuth) * std::sin(CameraAltitude), 0.0f) };
+
+    DirectX::XMVECTOR XMCameraPosition = { DirectX::XMVectorAdd(DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMCameraOffset) };
+
+    DirectX::XMFLOAT3 CameraPosition = {};
+    DirectX::XMStoreFloat3(&CameraPosition, XMCameraPosition);
+
+    DirectX::XMFLOAT3 TargetPosition = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 UpAxisInWorldSpace = { 0.0f, 1.0f, 0.0f };
+
+    ::Camera->LookAtTargetPoint(CameraPosition, TargetPosition, UpAxisInWorldSpace);
+
+    ::Camera->UpdateViewMatrix();
+}
+
 VOID Render()
 {
-    OpenGLContext->ClearBackBuffer();
+    ::OpenGLContext->ClearBackBuffer();
 
-    TextureSliceRenderer->Render(OpenGLContext.get());
+    ::TextureSliceRenderer->Render(OpenGLContext.get(), Camera.get());
 
-    OpenGLContext->SwapBuffers();
+    ::OpenGLContext->SwapBuffers();
 }
 
 VOID RunProgram(HINSTANCE Instance)
 {
     ::CreateApplicationWindow(Instance);
 
-    OpenGLContext = std::make_unique<RTVR::OpenGL::Context>(WindowHandle);
+    ::OpenGLContext = std::make_unique<RTVR::OpenGL::Context>(WindowHandle);
 
-    TextureSliceRenderer = std::make_unique<RTVR::Texture2DSliceRenderer>(OpenGLContext.get());
+    ::TextureSliceRenderer = std::make_unique<RTVR::Texture2DSliceRenderer>(OpenGLContext.get());
+
+    ::Camera = std::make_unique<RTVR::Camera>();
 
     ::IsProgramRunning = TRUE;
 
@@ -166,10 +189,12 @@ VOID RunProgram(HINSTANCE Instance)
     {
         ::HandleEvents();
 
+        ::Update();
+
         ::Render();
     }
 
-    TextureSliceRenderer->DeleteResources(OpenGLContext.get());
+    ::TextureSliceRenderer->DeleteResources(OpenGLContext.get());
 }
 
 INT WINAPI WinMain(HINSTANCE Instance, HINSTANCE, LPSTR CommandLine, INT ShowCommand)
