@@ -20,4 +20,12 @@ namespace RTVR
 
         virtual VOID DeleteResources(OpenGL::Context* OpenGLContext) = 0;
     };
+
+    class IVolume
+    {
+    public:
+        virtual ~IVolume() {}
+
+        virtual VOID Render(OpenGL::Context* OpenGLContext, Camera* Camera) = 0;
+    };
 }

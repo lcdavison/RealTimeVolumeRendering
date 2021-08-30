@@ -7,8 +7,14 @@
 #include "DatasetLoader.h"
 #include "Shader.h"
 #include "Vertex.h"
+#include "Camera.h"
 
 #include <sstream>
+#include <functional>
+
+/* Get rid of Windows stuff */
+#undef max
+#undef min
 
 using namespace DirectX;
 
@@ -59,96 +65,70 @@ namespace RTVR::Modelling
 
     VOID Texture2DSliceVolume::CreateVolumeSlices(OpenGL::Context* OpenGLContext)
     {
-        CreateVolumeSlicesXAxis(OpenGLContext);
-        CreateVolumeSlicesYAxis(OpenGLContext);
-        CreateVolumeSlicesZAxis(OpenGLContext);
+        UINT64 CurrentDepthIndex = { 0 };
+        std::for_each(SliceStackXAxis_.begin(), SliceStackXAxis_.end(), 
+                      std::bind(&Texture2DSliceVolume::ConstructVolumeSliceTextures, this, 
+                                OpenGLContext, 
+                                Axis::X, 
+                                VolumeTexture_->GridResolutionZ, VolumeTexture_->GridResolutionY, 
+                                CurrentDepthIndex, std::placeholders::_1));
+
+        CurrentDepthIndex = 0;
+        std::for_each(SliceStackYAxis_.begin(), SliceStackYAxis_.end(),
+                      std::bind(&Texture2DSliceVolume::ConstructVolumeSliceTextures, this,
+                                OpenGLContext,
+                                Axis::Y,
+                                VolumeTexture_->GridResolutionX, VolumeTexture_->GridResolutionZ,
+                                CurrentDepthIndex, std::placeholders::_1));
+
+        CurrentDepthIndex = 0;
+        std::for_each(SliceStackZAxis_.begin(), SliceStackZAxis_.end(),
+                      std::bind(&Texture2DSliceVolume::ConstructVolumeSliceTextures, this,
+                                OpenGLContext,
+                                Axis::Z,
+                                VolumeTexture_->GridResolutionX, VolumeTexture_->GridResolutionY,
+                                CurrentDepthIndex, std::placeholders::_1));
     }
 
-    VOID Texture2DSliceVolume::CreateVolumeSlicesXAxis(OpenGL::Context* OpenGLContext)
+    VOID Texture2DSliceVolume::ConstructVolumeSliceTextures(OpenGL::Context* OpenGLContext, Axis VolumeSliceStackAxis, UINT64 SliceWidth, UINT64 SliceHeight, UINT64& CurrentDepthIndex, VolumeSlice& VolumeSlice)
     {
-        UINT64 CurrentXIndex = { 0 };
+        std::vector<std::byte> VolumeSliceTextureData = {};
 
-        auto ProcessVolumeSlice = [this, OpenGLContext, &CurrentXIndex](VolumeSlice& Slice)
+        SIZE_T VolumeTextureSizeInTexels = { SliceWidth * SliceHeight };
+        VolumeSliceTextureData.resize(VolumeTextureSizeInTexels);
+
+        for (UINT64 CurrentRowIndex = { 0 }; CurrentRowIndex < SliceHeight; CurrentRowIndex++)
         {
-            std::vector<std::byte> VolumeSliceTextureData = {};
-
-            SIZE_T VolumeTextureSizeInTexels = { static_cast<UINT64>(VolumeTexture_->GridResolutionZ) * static_cast<UINT64>(VolumeTexture_->GridResolutionY) };
-            VolumeSliceTextureData.resize(VolumeTextureSizeInTexels);
-
-            for (UINT64 CurrentYIndex = { 0 }; CurrentYIndex < VolumeTexture_->GridResolutionY; CurrentYIndex++)
+            for (UINT64 CurrentColumnIndex = { 0 }; CurrentColumnIndex < SliceWidth; CurrentColumnIndex++)
             {
-                for (UINT64 CurrentZIndex = { 0 }; CurrentZIndex < VolumeTexture_->GridResolutionZ; CurrentZIndex++)
-                {
-                    SIZE_T VolumeDataIndex = { (CurrentZIndex * VolumeTexture_->GridResolutionY + CurrentYIndex) * VolumeTexture_->GridResolutionX + CurrentXIndex };
+                UINT64 VolumeTextureIndex = { CalculateVolumeTextureIndex(VolumeSliceStackAxis, CurrentColumnIndex, CurrentRowIndex, CurrentDepthIndex, SliceWidth, SliceHeight) };
 
-                    VolumeSliceTextureData [CurrentYIndex * (VolumeTexture_->GridResolutionZ) + CurrentZIndex] = VolumeTexture_->VolumeData [VolumeDataIndex];
-                }
+                VolumeSliceTextureData [CurrentRowIndex * SliceWidth + CurrentColumnIndex] = VolumeTexture_->VolumeData [VolumeTextureIndex];
             }
+        }
 
-            Slice.OpenGLTextureID = OpenGLContext->CreateTexture2D(VolumeTexture_->GridResolutionZ, VolumeTexture_->GridResolutionY, VolumeSliceTextureData.data(), 1, OpenGL::TexelFormat::GrayScale, OpenGL::DataType::UnsignedByte);
+        VolumeSlice.OpenGLTextureID = OpenGLContext->CreateTexture2D(SliceWidth, SliceHeight, VolumeSliceTextureData.data(), 1, OpenGL::TexelFormat::GrayScale, OpenGL::DataType::UnsignedByte);
 
-            ++CurrentXIndex;
-        };
-
-        std::for_each(SliceStackXAxis_.begin(), SliceStackXAxis_.end(), ProcessVolumeSlice);
+        ++CurrentDepthIndex;
     }
 
-    VOID Texture2DSliceVolume::CreateVolumeSlicesYAxis(OpenGL::Context* OpenGLContext)
+    UINT64 Texture2DSliceVolume::CalculateVolumeTextureIndex(Axis PrimaryAxis, UINT64 Column, UINT64 Row, UINT64 Depth, UINT64 SliceWidth, UINT64 SliceHeight)
     {
-        UINT64 CurrentYIndex = { 0 };
-
-        auto ProcessVolumeSlice = [this, OpenGLContext, &CurrentYIndex](VolumeSlice& Slice)
+        switch (PrimaryAxis)
         {
-            std::vector<std::byte> VolumeSliceTextureData = {};
-
-            SIZE_T VolumeTextureSizeInTexels = { static_cast<UINT64>(VolumeTexture_->GridResolutionX) * static_cast<UINT64>(VolumeTexture_->GridResolutionZ) };
-            VolumeSliceTextureData.resize(VolumeTextureSizeInTexels);
-
-            for (UINT64 CurrentZIndex = { 0 }; CurrentZIndex < VolumeTexture_->GridResolutionZ; CurrentZIndex++)
+        case Axis::X:
             {
-                for (UINT64 CurrentXIndex = { 0 }; CurrentXIndex < VolumeTexture_->GridResolutionX; CurrentXIndex++)
-                {
-                    SIZE_T VolumeDataIndex = { (CurrentZIndex * VolumeTexture_->GridResolutionY + CurrentYIndex) * VolumeTexture_->GridResolutionX + CurrentXIndex };
-
-                    VolumeSliceTextureData [CurrentZIndex * (VolumeTexture_->GridResolutionX) + CurrentXIndex] = VolumeTexture_->VolumeData [VolumeDataIndex];
-                }
+                return (Column * SliceHeight + Row) * SliceWidth + Depth;
             }
-
-            Slice.OpenGLTextureID = OpenGLContext->CreateTexture2D(VolumeTexture_->GridResolutionX, VolumeTexture_->GridResolutionZ, VolumeSliceTextureData.data(), 1, OpenGL::TexelFormat::GrayScale, OpenGL::DataType::UnsignedByte);
-
-            ++CurrentYIndex;
-        };
-
-        std::for_each(SliceStackYAxis_.begin(), SliceStackYAxis_.end(), ProcessVolumeSlice);
-    }
-
-    VOID Texture2DSliceVolume::CreateVolumeSlicesZAxis(OpenGL::Context* OpenGLContext)
-    {
-        UINT64 CurrentZIndex = { 0 };
-
-        auto ProcessVolumeSlice = [this, OpenGLContext, &CurrentZIndex](VolumeSlice& Slice)
-        {
-            std::vector<std::byte> VolumeSliceTextureData = {};
-
-            SIZE_T VolumeTextureSizeInTexels = { static_cast<UINT64>(VolumeTexture_->GridResolutionX) * static_cast<UINT64>(VolumeTexture_->GridResolutionY) };
-            VolumeSliceTextureData.resize(VolumeTextureSizeInTexels);
-
-            for (UINT64 CurrentYIndex = { 0 }; CurrentYIndex < VolumeTexture_->GridResolutionY; CurrentYIndex++)
+        case Axis::Y:
             {
-                for (UINT64 CurrentXIndex = { 0 }; CurrentXIndex < VolumeTexture_->GridResolutionX; CurrentXIndex++)
-                {
-                    SIZE_T VolumeDataIndex = { (CurrentZIndex * VolumeTexture_->GridResolutionY + CurrentYIndex) * VolumeTexture_->GridResolutionX + CurrentXIndex };
-
-                    VolumeSliceTextureData [CurrentYIndex * (VolumeTexture_->GridResolutionX) + CurrentXIndex] = VolumeTexture_->VolumeData [VolumeDataIndex];
-                }
+                return (Row * SliceHeight + Depth) * SliceWidth + Column;
             }
-
-            Slice.OpenGLTextureID = OpenGLContext->CreateTexture2D(VolumeTexture_->GridResolutionX, VolumeTexture_->GridResolutionY, VolumeSliceTextureData.data(), 1, OpenGL::TexelFormat::GrayScale, OpenGL::DataType::UnsignedByte);
-
-            ++CurrentZIndex;
-        };
-
-        std::for_each(SliceStackZAxis_.begin(), SliceStackZAxis_.end(), ProcessVolumeSlice);
+        case Axis::Z:
+            {
+                return (Depth * SliceHeight + Row) * SliceWidth + Column;
+            }
+        }
     }
 
     VOID Texture2DSliceVolume::DeleteResources(OpenGL::Context* OpenGLContext)
@@ -173,6 +153,55 @@ namespace RTVR::Modelling
         }
     }
 
+    VOID Texture2DSliceVolume::Render(OpenGL::Context* OpenGLContext, Camera* Camera)
+    {
+        OpenGLContext->SetBlendFunction(OpenGL::BlendFactor::One, OpenGL::BlendFactor::OneMinusSourceAlpha);
+
+        XMFLOAT4 ViewDirectionInVolumeSpace = { CalculateViewDirectionInVolumeSpace(Camera) };
+
+        Axis MaximumViewAxis = { CalculateMaximumAxis(ViewDirectionInVolumeSpace) };
+
+        switch (MaximumViewAxis)
+        {
+        case Axis::X:
+            {
+                if (ViewDirectionInVolumeSpace.x > 0.0f)
+                {
+                    RenderSliceStackPositiveX(OpenGLContext);
+                }
+                else
+                {
+                    RenderSliceStackNegativeX(OpenGLContext);
+                }
+            }
+            break;
+        case Axis::Y:
+            {
+                if (ViewDirectionInVolumeSpace.y > 0.0f)
+                {
+                    RenderSliceStackPositiveY(OpenGLContext);
+                }
+                else
+                {
+                    RenderSliceStackNegativeY(OpenGLContext);
+                }
+            }
+            break;
+        case Axis::Z:
+            {
+                if (ViewDirectionInVolumeSpace.z > 0.0f)
+                {
+                    RenderSliceStackPositiveZ(OpenGLContext);
+                }
+                else
+                {
+                    RenderSliceStackNegativeZ(OpenGLContext);
+                }
+            }
+            break;
+        }
+    }
+
     VOID Texture2DSliceVolume::RenderSliceStackPositiveX(OpenGL::Context* OpenGLContext)
     {
         DOUBLE CurrentPositionX = { 1.0 };
@@ -184,12 +213,12 @@ namespace RTVR::Modelling
         {
             const VolumeSlice& CurrentSlice = { SliceStackXAxis_ [CurrentSliceIndex] };
 
-            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), -1.0f, -1.0f }, { 0.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), -1.0f, 1.0f }, { 1.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), 1.0f, -1.0f }, { 0.0f, 1.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), 1.0f, -1.0f }, { 0.0f, 1.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), -1.0f, 1.0f }, { 1.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), 1.0f, 1.0f }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), -1.0f, -1.0f }, { 1.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), -1.0f, 1.0f }, { 0.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), 1.0f, -1.0f }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), 1.0f, -1.0f }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), -1.0f, 1.0f }, { 0.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { static_cast<FLOAT>(CurrentPositionX), 1.0f, 1.0f }, { 0.0f, 1.0f } });
 
             OpenGLContext->UpdateBuffer(OpenGLVertexBufferID_, CurrentSliceVertices_.data(), CurrentSliceVertices_.size() * sizeof(Vertex));
 
@@ -244,12 +273,12 @@ namespace RTVR::Modelling
         {
             const VolumeSlice& CurrentSlice = { SliceStackYAxis_ [CurrentSliceIndex] };
 
-            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, static_cast<FLOAT>(CurrentPositionY), 1.0f }, { 0.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, static_cast<FLOAT>(CurrentPositionY), 1.0f }, { 1.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, static_cast<FLOAT>(CurrentPositionY), -1.0f }, { 0.0f, 1.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, static_cast<FLOAT>(CurrentPositionY), -1.0f }, { 0.0f, 1.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, static_cast<FLOAT>(CurrentPositionY), 1.0f }, { 1.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, static_cast<FLOAT>(CurrentPositionY), -1.0f }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, static_cast<FLOAT>(CurrentPositionY), 1.0f }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, static_cast<FLOAT>(CurrentPositionY), 1.0f }, { 0.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, static_cast<FLOAT>(CurrentPositionY), -1.0f }, { 1.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, static_cast<FLOAT>(CurrentPositionY), -1.0f }, { 1.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, static_cast<FLOAT>(CurrentPositionY), 1.0f }, { 0.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, static_cast<FLOAT>(CurrentPositionY), -1.0f }, { 0.0f, 0.0f } });
 
             OpenGLContext->UpdateBuffer(OpenGLVertexBufferID_, CurrentSliceVertices_.data(), CurrentSliceVertices_.size() * sizeof(Vertex));
 
@@ -304,12 +333,12 @@ namespace RTVR::Modelling
         {
             const VolumeSlice& CurrentSlice = { SliceStackZAxis_ [CurrentSliceIndex] };
 
-            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, -1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 0.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, -1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 1.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, 1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 0.0f, 1.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, 1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 0.0f, 1.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, -1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 1.0f, 0.0f } });
-            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, 1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, -1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 1.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, -1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 0.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, 1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { 1.0f, 1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 1.0f, 1.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, -1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 0.0f, 0.0f } });
+            CurrentSliceVertices_.emplace_back(Vertex { { -1.0f, 1.0f, static_cast<FLOAT>(CurrentPositionZ) }, { 0.0f, 1.0f } });
 
             OpenGLContext->UpdateBuffer(OpenGLVertexBufferID_, CurrentSliceVertices_.data(), CurrentSliceVertices_.size() * sizeof(Vertex));
 
@@ -358,6 +387,46 @@ namespace RTVR::Modelling
         OpenGLContext->BindTexture2D(VolumeSlice.OpenGLTextureID, 0);
 
         OpenGLContext->DrawVertices(VertexCountPerSlice);
+    }
+
+    XMFLOAT4 Texture2DSliceVolume::CalculateViewDirectionInVolumeSpace(Camera* Camera)
+    {
+        const XMFLOAT4X4& ViewMatrix = { Camera->ViewMatrix() };
+
+        XMMATRIX ModelViewMatrix = { XMMatrixMultiply(XMLoadFloat4x4(&ModelMatrix_),
+                                                      XMLoadFloat4x4(&ViewMatrix)) };
+
+        XMVECTOR ModelViewMatrixDeterminant = { XMMatrixDeterminant(ModelViewMatrix) };
+        XMMATRIX ModelViewInverseMatrix = { XMMatrixInverse(&ModelViewMatrixDeterminant, ModelViewMatrix) };
+
+        XMFLOAT4 ViewDirectionInViewSpace = { 0.0f, 0.0f, -1.0f, 0.0f };
+
+        XMFLOAT4 ViewDirectionInVolumeSpace;
+        XMStoreFloat4(&ViewDirectionInVolumeSpace, XMVector4Transform(XMLoadFloat4(&ViewDirectionInViewSpace), ModelViewInverseMatrix));
+
+        return ViewDirectionInVolumeSpace;
+    }
+
+    Axis Texture2DSliceVolume::CalculateMaximumAxis(XMFLOAT4 Vector)
+    {
+        FLOAT AbsoluteXValue = { std::abs(Vector.x) };
+        FLOAT AbsoluteYValue = { std::abs(Vector.y) };
+        FLOAT AbsoluteZValue = { std::abs(Vector.z) };
+
+        FLOAT LargestValue = std::max(AbsoluteXValue, std::max(AbsoluteYValue, AbsoluteZValue));
+
+        if (LargestValue == AbsoluteYValue)
+        {
+            return Axis::Y;
+        }
+        else if (LargestValue == AbsoluteXValue)
+        {
+            return Axis::X;
+        }
+        else if (LargestValue == AbsoluteZValue)
+        {
+            return Axis::Z;
+        }
     }
 
     XMMATRIX Texture2DSliceVolume::ModelMatrix() const

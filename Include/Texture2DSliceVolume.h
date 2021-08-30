@@ -9,7 +9,13 @@
 #include <vector>
 #include <filesystem>
 
+#include "IVolumeRenderer.h"
 #include "Vertex.h"
+
+namespace RTVR
+{
+    class Camera;
+}
 
 namespace RTVR::OpenGL
 {
@@ -24,7 +30,7 @@ namespace RTVR::IO
 
 namespace RTVR::Modelling
 {
-    class Texture2DSliceVolume
+    class Texture2DSliceVolume : public IVolume
     {
         struct VolumeSlice
         {
@@ -50,13 +56,28 @@ namespace RTVR::Modelling
         UINT OpenGLVertexArrayID_;
         UINT OpenGLVertexBufferID_;
 
+        std::vector<UINT> SliceStackVertexBufferIDList_;
+
     public:
         Texture2DSliceVolume(OpenGL::Context* OpenGLContext);
         ~Texture2DSliceVolume();
      
         VOID DeleteResources(OpenGL::Context* OpenGLContext);
 
+        VOID Render(OpenGL::Context* OpenGLContext, Camera* Camera) override final;
+
         VOID LoadVolumeDataset(OpenGL::Context* OpenGLContext, std::filesystem::path DatasetFilePath);
+
+        DirectX::XMMATRIX ModelMatrix() const;
+
+    private:
+
+        VOID CreateResources(OpenGL::Context* OpenGLContext);
+
+        VOID CreateVolumeSlices(OpenGL::Context* OpenGLContext);
+
+        VOID ConstructVolumeSliceTextures(OpenGL::Context* OpenGLContext, Axis VolumeSliceStackAxis, UINT64 SliceWidth, UINT64 SliceHeight, UINT64& CurrentDepthIndex, VolumeSlice& VolumeSlice);
+        UINT64 CalculateVolumeTextureIndex(Axis VolumeSliceStackAxis, UINT64 Column, UINT64 Row, UINT64 Depth, UINT64 SliceWidth, UINT64 SliceHeight);
 
         VOID RenderSliceStackPositiveX(OpenGL::Context* OpenGLContext);
         VOID RenderSliceStackNegativeX(OpenGL::Context* OpenGLContext);
@@ -67,18 +88,10 @@ namespace RTVR::Modelling
         VOID RenderSliceStackPositiveZ(OpenGL::Context* OpenGLContext);
         VOID RenderSliceStackNegativeZ(OpenGL::Context* OpenGLContext);
 
-        DirectX::XMMATRIX ModelMatrix() const;
-
-    private:
-
-        VOID CreateResources(OpenGL::Context* OpenGLContext);
-
-        VOID CreateVolumeSlices(OpenGL::Context* OpenGLContext);
-
-        VOID CreateVolumeSlicesXAxis(OpenGL::Context* OpenGLContext);
-        VOID CreateVolumeSlicesYAxis(OpenGL::Context* OpenGLContext);
-        VOID CreateVolumeSlicesZAxis(OpenGL::Context* OpenGLContext);
-
         VOID RenderVolumeSlice(OpenGL::Context* OpenGLContext, const VolumeSlice& VolumeSlice);
+
+        DirectX::XMFLOAT4 CalculateViewDirectionInVolumeSpace(Camera* Camera);
+
+        Axis CalculateMaximumAxis(DirectX::XMFLOAT4 Vector);
     };
 }

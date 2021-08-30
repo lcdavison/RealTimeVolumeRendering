@@ -10,13 +10,6 @@
 
 namespace RTVR
 {
-    enum class Axis : UINT8
-    {
-        XAxis,
-        YAxis,
-        ZAxis
-    };
-
     /* This renderer implements the 2D Slice rendering algorithm from Real-Time Volume Graphics by Klaus Engel et al. */
     class Texture2DSliceRenderer final : public IVolumeRenderer
     {
@@ -34,8 +27,5 @@ namespace RTVR
     private:
         VOID SetupShaderUniforms(OpenGL::Context* OpenGLContext, Camera* Camera);
 
-        DirectX::XMFLOAT4 CalculateViewDirectionInVolumeSpace(Camera* Camera);
-
-        Axis CalculateMaximumAxis(DirectX::XMFLOAT4 Vector);
     };
 }
