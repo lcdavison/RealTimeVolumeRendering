@@ -31,8 +31,6 @@ namespace RTVR
 
     VOID Texture2DSliceRenderer::Render(OpenGL::Context* OpenGLContext, Camera* Camera)
     {
-        OpenGLContext->SetBlendFunction(OpenGL::BlendFactor::One, OpenGL::BlendFactor::OneMinusSourceAlpha);
-
         SliceVolumeShader_->Bind(OpenGLContext);
         SetupShaderUniforms(OpenGLContext, Camera);
 
